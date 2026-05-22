@@ -1770,4 +1770,100 @@ body {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
 }
+/* ============================================================
+   Responsive Layout (Media Queries)
+   ============================================================ */
+.sidebar-overlay { display: none; }
 
+@media (max-width: 1024px) {
+  .dashboard-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Sidebar */
+  .sidebar {
+    transform: translateX(-100%);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay.open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 95; /* below sidebar (100) */
+  }
+
+  /* App Main Content */
+  .app-main {
+    margin-left: 0;
+  }
+
+  .app-content {
+    padding: 16px 20px 24px;
+  }
+
+  /* Header */
+  .header {
+    padding: 0 20px;
+  }
+
+  .menu-toggle {
+    display: flex;
+  }
+
+  /* Grids */
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .export-import-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Modals */
+  .modal {
+    max-height: 95vh;
+  }
+
+  .modal-body {
+    padding: 16px;
+  }
+  
+  .modal-footer {
+    flex-direction: column;
+  }
+  
+  .modal-footer .btn {
+    width: 100%;
+  }
+
+  /* Transaction item */
+  .transaction-item {
+    flex-wrap: wrap;
+    position: relative;
+  }
+  
+  .transaction-actions {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+  }
+  
+  .transaction-amount {
+    width: 100%;
+    text-align: right;
+    margin-top: 8px;
+    padding-left: 42px; /* align with info */
+  }
+}

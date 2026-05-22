@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Plus, Search, ArrowUpRight, ArrowDownRight, Trash2, Edit3, ChevronLeft, ChevronRight, FileText, Download } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Header from '@/components/layout/Header';
 import TransactionForm from '@/components/transactions/TransactionForm';
 import TransferForm from '@/components/transactions/TransferForm';
@@ -306,12 +307,21 @@ export default function TransactionsPage() {
               </span>
             </div>
 
-            <div className="transaction-list">
-              {paginatedTransactions.map((transaction) => {
-                const category = getCategoryInfo(transaction.category);
-                return (
-                  <div key={transaction.id} className="transaction-item">
-                    <input
+            <motion.div layout className="transaction-list">
+              <AnimatePresence initial={false}>
+                {paginatedTransactions.map((transaction) => {
+                  const category = getCategoryInfo(transaction.category);
+                  return (
+                    <motion.div 
+                      layout
+                      key={transaction.id} 
+                      className="transaction-item"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, x: -20, transition: { duration: 0.15 } }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <input
                       type="checkbox"
                       className="transaction-checkbox"
                       checked={selectedIds.has(transaction.id)}
@@ -355,12 +365,13 @@ export default function TransactionsPage() {
                         <Trash2 size={15} />
                       </button>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </motion.div>
 
-            {/* Pagination */}
+            {/* Pagination Controls */}
             {totalPages > 1 && (
               <>
                 <div className="pagination">

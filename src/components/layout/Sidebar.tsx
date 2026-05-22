@@ -3,13 +3,16 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, ArrowLeftRight, Settings, Wallet } from 'lucide-react';
+import { LayoutDashboard, ArrowLeftRight, Settings, Wallet, Repeat, Target, BarChart3 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { NAV_ITEMS } from '@/lib/constants';
 
 const iconMap: Record<string, React.ReactNode> = {
   LayoutDashboard: <LayoutDashboard size={20} />,
   ArrowLeftRight: <ArrowLeftRight size={20} />,
+  Repeat: <Repeat size={20} />,
+  Target: <Target size={20} />,
+  BarChart3: <BarChart3 size={20} />,
   Settings: <Settings size={20} />,
 };
 

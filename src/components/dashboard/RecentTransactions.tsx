@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { ArrowUpRight, ArrowDownRight, ArrowRight } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useApp } from '@/context/AppContext';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
@@ -58,14 +59,30 @@ export default function RecentTransactions({ limit = 7, onViewAll, onClickTransa
           </button>
         )}
       </div>
-      <div className="transaction-list">
+      <motion.div 
+        className="transaction-list"
+        initial="hidden"
+        animate="visible"
+        variants={{
+          visible: {
+            transition: {
+              staggerChildren: 0.05
+            }
+          }
+        }}
+      >
         {recentTransactions.map((transaction) => {
           const category = getCategoryInfo(transaction.category);
           return (
-            <div
+            <motion.div
               key={transaction.id}
               className="transaction-item"
               onClick={() => onClickTransaction?.(transaction.id)}
+              variants={{
+                hidden: { opacity: 0, x: -10 },
+                visible: { opacity: 1, x: 0 }
+              }}
+              transition={{ duration: 0.2 }}
             >
               <div
                 className="transaction-icon"
@@ -98,10 +115,10 @@ export default function RecentTransactions({ limit = 7, onViewAll, onClickTransa
                   {formatCurrency(transaction.amount, transaction.currency)}
                 </span>
               </div>
-            </div>
+            </motion.div>
           );
         })}
-      </div>
+      </motion.div>
     </div>
   );
 }

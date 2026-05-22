@@ -12,6 +12,7 @@ import BudgetOverview from '@/components/dashboard/BudgetOverview';
 import TransactionForm from '@/components/transactions/TransactionForm';
 import { useApp } from '@/context/AppContext';
 import { getGreeting, getCurrentMonth } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -65,7 +66,14 @@ export default function DashboardPage() {
         title={`${getGreeting()} 👋`}
         subtitle="Ini ringkasan keuangan kamu"
       />
-      <div className="app-content animate-fade-in">
+      <motion.div 
+        className="app-content animate-fade-in"
+        initial="hidden"
+        animate="visible"
+        variants={{
+          visible: { transition: { staggerChildren: 0.1 } }
+        }}
+      >
         {/* Month Picker */}
         <div className="month-picker" style={{ marginBottom: '20px' }}>
           <button className="month-picker-btn" onClick={() => navigateMonth(-1)}>
@@ -85,20 +93,40 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <BalanceCards selectedMonth={selectedMonth} />
+        <motion.div 
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+          }}
+        >
+          <BalanceCards selectedMonth={selectedMonth} />
+        </motion.div>
 
-        <div className="dashboard-charts">
+        <motion.div 
+          className="dashboard-charts"
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+          }}
+        >
           <CashflowChart />
           <CategoryBreakdown selectedMonth={selectedMonth} />
-        </div>
+        </motion.div>
 
-        <RecentTransactions
-          limit={5}
-          onViewAll={() => router.push('/transactions')}
-          selectedMonth={selectedMonth}
-        />
-        <BudgetOverview selectedMonth={selectedMonth} />
-      </div>
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+          }}
+        >
+          <RecentTransactions
+            limit={5}
+            onViewAll={() => router.push('/transactions')}
+            selectedMonth={selectedMonth}
+          />
+          <BudgetOverview selectedMonth={selectedMonth} />
+        </motion.div>
+      </motion.div>
 
       {/* FAB - Add Transaction */}
       <button
