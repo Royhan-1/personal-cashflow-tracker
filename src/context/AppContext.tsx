@@ -27,6 +27,7 @@ import {
 import { generateDueRecurringTransactions } from '@/lib/recurring';
 import { generateId, getToday } from '@/lib/utils';
 import { DEFAULT_SETTINGS } from '@/lib/constants';
+import { syncDatabase } from '@/lib/sync';
 
 // ============================================================
 // State Types
@@ -276,6 +277,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           getSettings(),
         ]);
         dispatch({ type: 'INITIALIZE', payload: { transactions, recurringTransactions, categories, budgets, settings } });
+        
+        // Background sync with Supabase
+        syncDatabase().then(() => {
+          // Refresh context data if sync brought new items
+          refreshData();
+        }).catch(err => console.error('Background sync error', err));
       } catch (error) {
         console.error('Failed to initialize database:', error);
         dispatch({ type: 'SET_LOADING', payload: false });
@@ -336,18 +343,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await dbAddTransaction(transaction);
     dispatch({ type: 'ADD_TRANSACTION', payload: transaction });
     showToast('success', 'Transaksi berhasil ditambahkan');
+    syncDatabase().catch(console.error);
   }, [showToast]);
 
   const updateTransaction = useCallback(async (id: string, updates: Partial<Transaction>) => {
     await dbUpdateTransaction(id, updates);
     dispatch({ type: 'UPDATE_TRANSACTION', payload: { id, updates: { ...updates, updatedAt: new Date().toISOString() } } });
     showToast('success', 'Transaksi berhasil diperbarui');
+    syncDatabase().catch(console.error);
   }, [showToast]);
 
   const deleteTransaction = useCallback(async (id: string) => {
     await dbDeleteTransaction(id);
     dispatch({ type: 'DELETE_TRANSACTION', payload: id });
     showToast('success', 'Transaksi berhasil dihapus');
+    syncDatabase().catch(console.error);
   }, [showToast]);
 
   const deleteTransactions = useCallback(async (ids: string[]) => {
