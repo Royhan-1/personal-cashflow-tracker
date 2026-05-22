@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppProvider } from "@/context/AppContext";
-import Sidebar from "@/components/layout/Sidebar";
 import ToastContainer from "@/components/ui/ToastContainer";
 
 export const metadata: Metadata = {
@@ -19,12 +18,7 @@ export default function RootLayout({
     <html lang="id" data-theme="dark" suppressHydrationWarning>
       <body>
         <AppProvider>
-          <div className="app-layout">
-            <Sidebar />
-            <main className="app-main">
-              {children}
-            </main>
-          </div>
+          {children}
           <ToastContainer />
         </AppProvider>
       </body>
