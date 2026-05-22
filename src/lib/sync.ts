@@ -26,7 +26,6 @@ export async function syncDatabase() {
   }
 
   try {
-    await syncTable('categories', getAllCategories, addCategory, updateCategory, supabase, user.id);
     await syncTable('transactions', getAllTransactions, addTransaction, updateTransaction, supabase, user.id);
     // Recurring and budgets can be added later if needed, focusing on core entities first
     // For now we sync categories and transactions as proof of concept
@@ -121,17 +120,6 @@ function mapLocalToServer(table: string, local: any, userId: string) {
       // updated_at is missing in DB schema but let's assume createdAt acts as updated_at for now
     };
   }
-  if (table === 'categories') {
-    return {
-      id: local.id,
-      user_id: userId,
-      name: local.name,
-      type: local.type,
-      icon: local.icon,
-      color: local.color,
-      created_at: local.createdAt,
-    };
-  }
   return {};
 }
 
@@ -146,17 +134,6 @@ function mapServerToLocal(table: string, server: any) {
       description: server.description,
       type: server.type,
       currency: server.currency,
-      createdAt: server.created_at,
-      updatedAt: server.created_at,
-    };
-  }
-  if (table === 'categories') {
-    return {
-      id: server.id,
-      name: server.name,
-      type: server.type,
-      icon: server.icon,
-      color: server.color,
       createdAt: server.created_at,
       updatedAt: server.created_at,
     };

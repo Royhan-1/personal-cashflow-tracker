@@ -84,6 +84,7 @@ export const NAV_ITEMS = [
   { path: '/recurring', label: 'Berulang', icon: 'Repeat' },
   { path: '/budgets', label: 'Anggaran', icon: 'Target' },
   { path: '/reports', label: 'Laporan', icon: 'BarChart3' },
+  { path: '/profile', label: 'Profil', icon: 'User' },
   { path: '/settings', label: 'Pengaturan', icon: 'Settings' },
 ] as const;
 
