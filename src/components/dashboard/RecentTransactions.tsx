@@ -9,16 +9,21 @@ interface RecentTransactionsProps {
   limit?: number;
   onViewAll?: () => void;
   onClickTransaction?: (id: string) => void;
+  selectedMonth?: string; // 'YYYY-MM'
 }
 
-export default function RecentTransactions({ limit = 7, onViewAll, onClickTransaction }: RecentTransactionsProps) {
+export default function RecentTransactions({ limit = 7, onViewAll, onClickTransaction, selectedMonth }: RecentTransactionsProps) {
   const { state } = useApp();
 
   const recentTransactions = useMemo(() => {
-    return [...state.transactions]
+    let txs = [...state.transactions];
+    if (selectedMonth) {
+      txs = txs.filter(t => t.date.startsWith(selectedMonth));
+    }
+    return txs
       .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
       .slice(0, limit);
-  }, [state.transactions, limit]);
+  }, [state.transactions, limit, selectedMonth]);
 
   const getCategoryInfo = (categoryId: string) => {
     return state.categories.find(c => c.id === categoryId);

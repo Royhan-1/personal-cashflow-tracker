@@ -810,9 +810,11 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px 0;
+  padding: 14px 16px;
+  margin: 0 -16px;
   border-bottom: 1px solid var(--border-color);
-  transition: background var(--transition-fast);
+  border-radius: var(--border-radius-md);
+  transition: all var(--transition-fast);
   cursor: pointer;
 }
 
@@ -822,10 +824,7 @@ body {
 
 .transaction-item:hover {
   background: var(--bg-glass);
-  margin: 0 -16px;
-  padding-left: 16px;
-  padding-right: 16px;
-  border-radius: var(--border-radius-md);
+  border-bottom-color: transparent;
 }
 
 .transaction-icon {
@@ -1358,3 +1357,417 @@ body {
 .w-full { width: 100%; }
 .hidden { display: none; }
 .relative { position: relative; }
+
+/* ============================================================
+   Settings Action Cards (Export/Import)
+   ============================================================ */
+.settings-action-card {
+  cursor: pointer;
+  text-align: center;
+}
+
+.settings-action-card:hover {
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+}
+
+.settings-action-icon {
+  margin-bottom: 12px;
+}
+
+.settings-action-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.settings-action-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.settings-section-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+/* Currency cards */
+.currency-symbol {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent-primary);
+  width: 32px;
+}
+
+.currency-default {
+  border-color: var(--accent-primary) !important;
+  background: var(--accent-primary-glow) !important;
+}
+
+.currency-disabled {
+  opacity: 0.4;
+}
+
+/* Category color dot */
+.category-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Category group title */
+.category-group-title {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  margin-top: 16px;
+}
+
+/* Icon picker */
+.icon-picker-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.icon-picker-item {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.icon-picker-item.active {
+  border: 2px solid var(--accent-primary);
+  background: var(--accent-primary-glow);
+}
+
+.icon-picker-item:hover:not(.active) {
+  border-color: var(--border-color-hover);
+}
+
+/* Color picker */
+.color-picker-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.color-picker-item {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.color-picker-item.active {
+  border-color: var(--text-primary);
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Info banner */
+.info-banner {
+  padding: 10px 14px;
+  border-radius: var(--border-radius-md);
+  font-size: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.info-banner.warning {
+  background: var(--accent-warning-bg);
+  color: var(--accent-warning);
+}
+
+.info-banner.success {
+  background: var(--accent-income-bg);
+  color: var(--accent-income);
+  font-size: 14px;
+  font-weight: 600;
+  align-items: center;
+}
+
+/* Import preview */
+.import-password-prompt {
+  text-align: center;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.import-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.import-preview-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+/* Danger zone */
+.danger-item {
+  border-color: rgba(255, 107, 122, 0.2);
+}
+
+.danger-confirm-prompt {
+  text-align: center;
+  padding: 12px;
+}
+
+/* ============================================================
+   Balance Card Glow Effects
+   ============================================================ */
+.balance-card-glow {
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  border-radius: 50%;
+  filter: blur(30px);
+  pointer-events: none;
+}
+
+.balance-card-glow.primary {
+  width: 100px;
+  height: 100px;
+  background: var(--accent-primary-glow);
+}
+
+.balance-card-glow.income {
+  width: 80px;
+  height: 80px;
+  background: var(--accent-income-bg);
+  filter: blur(25px);
+}
+
+.balance-card-glow.expense {
+  width: 80px;
+  height: 80px;
+  background: var(--accent-expense-bg);
+  filter: blur(25px);
+}
+
+/* ============================================================
+   Pagination
+   ============================================================ */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 0;
+  margin-top: 12px;
+}
+
+.pagination-btn {
+  min-width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-primary);
+  transition: all var(--transition-fast);
+  padding: 0 4px;
+}
+
+.pagination-btn:hover:not(:disabled):not(.active) {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--accent-primary-glow);
+}
+
+.pagination-btn.active {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* ============================================================
+   Month Picker
+   ============================================================ */
+.month-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.month-picker-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.month-picker-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--accent-primary-glow);
+}
+
+.month-picker-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 120px;
+  text-align: center;
+}
+
+.month-picker-reset {
+  font-size: 12px;
+  color: var(--accent-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-primary);
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: var(--border-radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.month-picker-reset:hover {
+  background: var(--accent-primary-glow);
+}
+
+/* ============================================================
+   Bulk Action Bar
+   ============================================================ */
+.bulk-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--accent-primary-glow);
+  border-radius: var(--border-radius-md);
+  margin-bottom: 12px;
+  animation: slideUp 0.2s ease;
+}
+
+.bulk-action-count {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Select All Row */
+.select-all-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+}
+
+.select-all-row input[type="checkbox"] {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-primary);
+}
+
+.select-all-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Transaction item checkbox */
+.transaction-checkbox {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+/* Transaction actions */
+.transaction-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   App Version Footer
+   ============================================================ */
+.app-footer {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ============================================================
+   Summary Bar - Multi Currency
+   ============================================================ */
+.summary-currency-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.summary-currency-tab {
+  padding: 4px 12px;
+  border-radius: var(--border-radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font-primary);
+  transition: all var(--transition-fast);
+}
+
+.summary-currency-tab.active {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+.summary-currency-tab:hover:not(.active) {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+

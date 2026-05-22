@@ -81,6 +81,9 @@ export const CHART_COLORS = {
 export const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: 'LayoutDashboard' },
   { path: '/transactions', label: 'Transaksi', icon: 'ArrowLeftRight' },
+  { path: '/recurring', label: 'Berulang', icon: 'Repeat' },
+  { path: '/budgets', label: 'Anggaran', icon: 'Target' },
+  { path: '/reports', label: 'Laporan', icon: 'BarChart3' },
   { path: '/settings', label: 'Pengaturan', icon: 'Settings' },
 ] as const;
 

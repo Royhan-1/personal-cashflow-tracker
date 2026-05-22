@@ -1,7 +1,7 @@
 import { format, parseISO, startOfMonth, endOfMonth, subMonths, isWithinInterval } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { SUPPORTED_CURRENCIES } from './constants';
-import { Transaction, MonthlyData, CategorySummary, DashboardSummary } from './types';
+import { Transaction, MonthlyData, CategorySummary, DashboardSummary, Budget, BudgetProgress } from './types';
 import { Category } from './types';
 
 // ============================================================
@@ -198,6 +198,36 @@ export function getCategorySummary(
   summaries.sort((a, b) => b.total - a.total);
 
   return summaries;
+}
+
+export function getBudgetProgress(
+  budgets: Budget[],
+  transactions: Transaction[],
+  month: string // 'YYYY-MM'
+): BudgetProgress[] {
+  return budgets.map(budget => {
+    // Calculate total spent for this budget's category in the given month and currency
+    const spent = transactions
+      .filter(
+        t =>
+          t.category === budget.categoryId &&
+          t.currency === budget.currency &&
+          t.date.startsWith(month) &&
+          t.type === 'expense'
+      )
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const remaining = budget.amount - spent;
+    const percentage = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
+
+    return {
+      budget,
+      spent,
+      remaining,
+      percentage,
+      isOverBudget: spent > budget.amount,
+    };
+  });
 }
 
 // ============================================================

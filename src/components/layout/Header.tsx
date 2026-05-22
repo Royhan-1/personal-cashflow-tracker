@@ -7,9 +7,10 @@ import { useApp } from '@/context/AppContext';
 interface HeaderProps {
   title: string;
   subtitle?: string;
+  children?: React.ReactNode;
 }
 
-export default function Header({ title, subtitle }: HeaderProps) {
+export default function Header({ title, subtitle, children }: HeaderProps) {
   const { state, toggleSidebar, updateSettings } = useApp();
 
   const toggleTheme = () => {
@@ -30,6 +31,7 @@ export default function Header({ title, subtitle }: HeaderProps) {
       </div>
 
       <div className="header-right">
+        {children}
         <button
           className="btn btn-ghost btn-icon"
           onClick={toggleTheme}

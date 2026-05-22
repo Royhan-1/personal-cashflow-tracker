@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
-import { Transaction, Category, AppSettings } from './types';
+import { Transaction, Category, AppSettings, RecurringTransaction, Budget } from './types';
 import { ALL_DEFAULT_CATEGORIES, DEFAULT_SETTINGS, DB_NAME } from './constants';
 
 // ============================================================
@@ -10,12 +10,22 @@ const db = new Dexie(DB_NAME) as Dexie & {
   transactions: EntityTable<Transaction, 'id'>;
   categories: EntityTable<Category, 'id'>;
   settings: EntityTable<AppSettings & { id: string }, 'id'>;
+  recurringTransactions: EntityTable<RecurringTransaction, 'id'>;
+  budgets: EntityTable<Budget, 'id'>;
 };
 
 db.version(1).stores({
   transactions: 'id, type, category, currency, date, createdAt',
   categories: 'id, type, isDefault, order',
   settings: 'id',
+});
+
+db.version(2).stores({
+  recurringTransactions: 'id, type, isActive, startDate',
+});
+
+db.version(3).stores({
+  budgets: 'id, categoryId, currency',
 });
 
 // ============================================================
@@ -69,6 +79,26 @@ export async function getTransactionCount(): Promise<number> {
 }
 
 // ============================================================
+// Recurring Transaction CRUD
+// ============================================================
+
+export async function getAllRecurringTransactions(): Promise<RecurringTransaction[]> {
+  return db.recurringTransactions.toArray();
+}
+
+export async function addRecurringTransaction(transaction: RecurringTransaction): Promise<string> {
+  return db.recurringTransactions.add(transaction);
+}
+
+export async function updateRecurringTransaction(id: string, updates: Partial<RecurringTransaction>): Promise<number> {
+  return db.recurringTransactions.update(id, { ...updates, updatedAt: new Date().toISOString() });
+}
+
+export async function deleteRecurringTransaction(id: string): Promise<void> {
+  return db.recurringTransactions.delete(id);
+}
+
+// ============================================================
 // Category CRUD
 // ============================================================
 
@@ -96,6 +126,30 @@ export async function deleteCategory(id: string): Promise<void> {
 }
 
 // ============================================================
+// Budget CRUD
+// ============================================================
+
+export async function getAllBudgets(): Promise<Budget[]> {
+  return db.budgets.toArray();
+}
+
+export async function getBudgetByCategory(categoryId: string): Promise<Budget | undefined> {
+  return db.budgets.where('categoryId').equals(categoryId).first();
+}
+
+export async function addBudget(budget: Budget): Promise<string> {
+  return db.budgets.add(budget);
+}
+
+export async function updateBudget(id: string, updates: Partial<Budget>): Promise<number> {
+  return db.budgets.update(id, { ...updates, updatedAt: new Date().toISOString() });
+}
+
+export async function deleteBudget(id: string): Promise<void> {
+  return db.budgets.delete(id);
+}
+
+// ============================================================
 // Settings
 // ============================================================
 
@@ -119,12 +173,16 @@ export async function updateSettings(updates: Partial<AppSettings>): Promise<voi
 export async function replaceAllData(
   transactions: Transaction[],
   categories: Category[],
-  settings: AppSettings
+  settings: AppSettings,
+  recurringTransactions: RecurringTransaction[] = [],
+  budgets: Budget[] = []
 ): Promise<void> {
-  await db.transaction('rw', [db.transactions, db.categories, db.settings], async () => {
+  await db.transaction('rw', [db.transactions, db.categories, db.settings, db.recurringTransactions, db.budgets], async () => {
     await db.transactions.clear();
     await db.categories.clear();
     await db.settings.clear();
+    await db.recurringTransactions.clear();
+    await db.budgets.clear();
 
     if (transactions.length > 0) {
       await db.transactions.bulkAdd(transactions);
@@ -132,18 +190,26 @@ export async function replaceAllData(
     if (categories.length > 0) {
       await db.categories.bulkAdd(categories);
     }
+    if (recurringTransactions.length > 0) {
+      await db.recurringTransactions.bulkAdd(recurringTransactions);
+    }
+    if (budgets.length > 0) {
+      await db.budgets.bulkAdd(budgets);
+    }
     await db.settings.add({ id: 'app-settings', ...settings });
   });
 }
 
 export async function mergeData(
   transactions: Transaction[],
-  categories: Category[]
+  categories: Category[],
+  recurringTransactions: RecurringTransaction[] = [],
+  budgets: Budget[] = []
 ): Promise<{ added: number; skipped: number }> {
   let added = 0;
   let skipped = 0;
 
-  await db.transaction('rw', [db.transactions, db.categories], async () => {
+  await db.transaction('rw', [db.transactions, db.categories, db.recurringTransactions, db.budgets], async () => {
     // Merge transactions (skip duplicates by id)
     for (const t of transactions) {
       const existing = await db.transactions.get(t.id);
@@ -162,16 +228,34 @@ export async function mergeData(
         await db.categories.add(c);
       }
     }
+
+    // Merge recurring transactions
+    for (const r of recurringTransactions) {
+      const existing = await db.recurringTransactions.get(r.id);
+      if (!existing) {
+        await db.recurringTransactions.add(r);
+      }
+    }
+
+    // Merge budgets
+    for (const b of budgets) {
+      const existing = await db.budgets.get(b.id);
+      if (!existing) {
+        await db.budgets.add(b);
+      }
+    }
   });
 
   return { added, skipped };
 }
 
 export async function clearAllData(): Promise<void> {
-  await db.transaction('rw', [db.transactions, db.categories, db.settings], async () => {
+  await db.transaction('rw', [db.transactions, db.categories, db.settings, db.recurringTransactions, db.budgets], async () => {
     await db.transactions.clear();
     await db.categories.clear();
     await db.settings.clear();
+    await db.recurringTransactions.clear();
+    await db.budgets.clear();
   });
   // Re-initialize defaults
   await initializeDatabase();

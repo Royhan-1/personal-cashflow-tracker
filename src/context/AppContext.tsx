@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
-import { Transaction, Category, AppSettings, TransactionFilters } from '@/lib/types';
+import { Transaction, Category, AppSettings, TransactionFilters, RecurringTransaction, Budget } from '@/lib/types';
 import {
   initializeDatabase,
   getAllTransactions,
@@ -15,7 +15,16 @@ import {
   updateCategory as dbUpdateCategory,
   deleteCategory as dbDeleteCategory,
   updateSettings as dbUpdateSettings,
+  getAllRecurringTransactions,
+  addRecurringTransaction as dbAddRecurringTransaction,
+  updateRecurringTransaction as dbUpdateRecurringTransaction,
+  deleteRecurringTransaction as dbDeleteRecurringTransaction,
+  getAllBudgets,
+  addBudget as dbAddBudget,
+  updateBudget as dbUpdateBudget,
+  deleteBudget as dbDeleteBudget,
 } from '@/lib/db';
+import { generateDueRecurringTransactions } from '@/lib/recurring';
 import { generateId, getToday } from '@/lib/utils';
 import { DEFAULT_SETTINGS } from '@/lib/constants';
 
@@ -25,7 +34,9 @@ import { DEFAULT_SETTINGS } from '@/lib/constants';
 
 interface AppState {
   transactions: Transaction[];
+  recurringTransactions: RecurringTransaction[];
   categories: Category[];
+  budgets: Budget[];
   settings: AppSettings;
   isLoading: boolean;
   isInitialized: boolean;
@@ -41,16 +52,24 @@ export interface Toast {
 
 type AppAction =
   | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'INITIALIZE'; payload: { transactions: Transaction[]; categories: Category[]; settings: AppSettings } }
+  | { type: 'INITIALIZE'; payload: { transactions: Transaction[]; recurringTransactions: RecurringTransaction[]; categories: Category[]; budgets: Budget[]; settings: AppSettings } }
   | { type: 'SET_TRANSACTIONS'; payload: Transaction[] }
   | { type: 'ADD_TRANSACTION'; payload: Transaction }
   | { type: 'UPDATE_TRANSACTION'; payload: { id: string; updates: Partial<Transaction> } }
   | { type: 'DELETE_TRANSACTION'; payload: string }
   | { type: 'DELETE_TRANSACTIONS'; payload: string[] }
+  | { type: 'SET_RECURRING'; payload: RecurringTransaction[] }
+  | { type: 'ADD_RECURRING'; payload: RecurringTransaction }
+  | { type: 'UPDATE_RECURRING'; payload: { id: string; updates: Partial<RecurringTransaction> } }
+  | { type: 'DELETE_RECURRING'; payload: string }
   | { type: 'SET_CATEGORIES'; payload: Category[] }
   | { type: 'ADD_CATEGORY'; payload: Category }
   | { type: 'UPDATE_CATEGORY'; payload: { id: string; updates: Partial<Category> } }
   | { type: 'DELETE_CATEGORY'; payload: string }
+  | { type: 'SET_BUDGETS'; payload: Budget[] }
+  | { type: 'ADD_BUDGET'; payload: Budget }
+  | { type: 'UPDATE_BUDGET'; payload: { id: string; updates: Partial<Budget> } }
+  | { type: 'DELETE_BUDGET'; payload: string }
   | { type: 'SET_SETTINGS'; payload: Partial<AppSettings> }
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'SET_SIDEBAR'; payload: boolean }
@@ -63,7 +82,9 @@ type AppAction =
 
 const initialState: AppState = {
   transactions: [],
+  recurringTransactions: [],
   categories: [],
+  budgets: [],
   settings: DEFAULT_SETTINGS,
   isLoading: true,
   isInitialized: false,
@@ -113,6 +134,29 @@ function appReducer(state: AppState, action: AppAction): AppState {
         transactions: state.transactions.filter(t => !action.payload.includes(t.id)),
       };
 
+    case 'SET_RECURRING':
+      return { ...state, recurringTransactions: action.payload };
+
+    case 'ADD_RECURRING':
+      return {
+        ...state,
+        recurringTransactions: [...state.recurringTransactions, action.payload],
+      };
+
+    case 'UPDATE_RECURRING':
+      return {
+        ...state,
+        recurringTransactions: state.recurringTransactions.map(rt =>
+          rt.id === action.payload.id ? { ...rt, ...action.payload.updates } : rt
+        ),
+      };
+
+    case 'DELETE_RECURRING':
+      return {
+        ...state,
+        recurringTransactions: state.recurringTransactions.filter(rt => rt.id !== action.payload),
+      };
+
     case 'SET_CATEGORIES':
       return { ...state, categories: action.payload };
 
@@ -131,6 +175,26 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         categories: state.categories.filter(c => c.id !== action.payload),
+      };
+
+    case 'SET_BUDGETS':
+      return { ...state, budgets: action.payload };
+
+    case 'ADD_BUDGET':
+      return { ...state, budgets: [...state.budgets, action.payload] };
+
+    case 'UPDATE_BUDGET':
+      return {
+        ...state,
+        budgets: state.budgets.map(b =>
+          b.id === action.payload.id ? { ...b, ...action.payload.updates } : b
+        ),
+      };
+
+    case 'DELETE_BUDGET':
+      return {
+        ...state,
+        budgets: state.budgets.filter(b => b.id !== action.payload),
       };
 
     case 'SET_SETTINGS':
@@ -164,10 +228,18 @@ interface AppContextType {
   updateTransaction: (id: string, updates: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   deleteTransactions: (ids: string[]) => Promise<void>;
+  // Recurring actions
+  addRecurringTransaction: (data: Omit<RecurringTransaction, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateRecurringTransaction: (id: string, updates: Partial<RecurringTransaction>) => Promise<void>;
+  deleteRecurringTransaction: (id: string) => Promise<void>;
   // Category actions
   addCategory: (data: Omit<Category, 'id' | 'isDefault' | 'order'>) => Promise<void>;
   updateCategory: (id: string, updates: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
+  // Budget actions
+  addBudget: (data: Omit<Budget, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateBudget: (id: string, updates: Partial<Budget>) => Promise<void>;
+  deleteBudget: (id: string) => Promise<void>;
   // Settings actions
   updateSettings: (updates: Partial<AppSettings>) => Promise<void>;
   // UI actions
@@ -195,12 +267,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async function init() {
       try {
         await initializeDatabase();
-        const [transactions, categories, settings] = await Promise.all([
+        await generateDueRecurringTransactions();
+        const [transactions, recurringTransactions, categories, budgets, settings] = await Promise.all([
           getAllTransactions(),
+          getAllRecurringTransactions(),
           getAllCategories(),
+          getAllBudgets(),
           getSettings(),
         ]);
-        dispatch({ type: 'INITIALIZE', payload: { transactions, categories, settings } });
+        dispatch({ type: 'INITIALIZE', payload: { transactions, recurringTransactions, categories, budgets, settings } });
       } catch (error) {
         console.error('Failed to initialize database:', error);
         dispatch({ type: 'SET_LOADING', payload: false });
@@ -239,12 +314,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshData = useCallback(async () => {
-    const [transactions, categories, settings] = await Promise.all([
+    await generateDueRecurringTransactions();
+    const [transactions, recurringTransactions, categories, budgets, settings] = await Promise.all([
       getAllTransactions(),
+      getAllRecurringTransactions(),
       getAllCategories(),
+      getAllBudgets(),
       getSettings(),
     ]);
-    dispatch({ type: 'INITIALIZE', payload: { transactions, categories, settings } });
+    dispatch({ type: 'INITIALIZE', payload: { transactions, recurringTransactions, categories, budgets, settings } });
   }, []);
 
   const addTransaction = useCallback(async (data: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -278,6 +356,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     showToast('success', `${ids.length} transaksi berhasil dihapus`);
   }, [showToast]);
 
+  const addRecurringTransaction = useCallback(async (data: Omit<RecurringTransaction, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const now = new Date().toISOString();
+    const recurringTx: RecurringTransaction = {
+      ...data,
+      id: `rt-${generateId()}`,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await dbAddRecurringTransaction(recurringTx);
+    dispatch({ type: 'ADD_RECURRING', payload: recurringTx });
+    showToast('success', 'Transaksi berulang berhasil ditambahkan');
+    await refreshData(); // So the newly generated transactions are picked up if any
+  }, [showToast, refreshData]);
+
+  const updateRecurringTransaction = useCallback(async (id: string, updates: Partial<RecurringTransaction>) => {
+    await dbUpdateRecurringTransaction(id, updates);
+    dispatch({ type: 'UPDATE_RECURRING', payload: { id, updates: { ...updates, updatedAt: new Date().toISOString() } } });
+    showToast('success', 'Transaksi berulang berhasil diperbarui');
+    await refreshData();
+  }, [showToast, refreshData]);
+
+  const deleteRecurringTransaction = useCallback(async (id: string) => {
+    await dbDeleteRecurringTransaction(id);
+    dispatch({ type: 'DELETE_RECURRING', payload: id });
+    showToast('success', 'Transaksi berulang berhasil dihapus');
+  }, [showToast]);
+
   const addCategory = useCallback(async (data: Omit<Category, 'id' | 'isDefault' | 'order'>) => {
     const category: Category = {
       ...data,
@@ -300,6 +405,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await dbDeleteCategory(id);
     dispatch({ type: 'DELETE_CATEGORY', payload: id });
     showToast('success', 'Kategori berhasil dihapus');
+  }, [showToast]);
+
+  const addBudget = useCallback(async (data: Omit<Budget, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const budget: Budget = {
+      ...data,
+      id: `budget-${generateId()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await dbAddBudget(budget);
+    dispatch({ type: 'ADD_BUDGET', payload: budget });
+    showToast('success', 'Anggaran berhasil ditambahkan');
+  }, [showToast]);
+
+  const updateBudget = useCallback(async (id: string, updates: Partial<Budget>) => {
+    await dbUpdateBudget(id, updates);
+    dispatch({ type: 'UPDATE_BUDGET', payload: { id, updates: { ...updates, updatedAt: new Date().toISOString() } } });
+    showToast('success', 'Anggaran berhasil diperbarui');
+  }, [showToast]);
+
+  const deleteBudget = useCallback(async (id: string) => {
+    await dbDeleteBudget(id);
+    dispatch({ type: 'DELETE_BUDGET', payload: id });
+    showToast('success', 'Anggaran berhasil dihapus');
   }, [showToast]);
 
   const updateSettingsAction = useCallback(async (updates: Partial<AppSettings>) => {
@@ -374,9 +503,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateTransaction,
     deleteTransaction,
     deleteTransactions,
+    addRecurringTransaction,
+    updateRecurringTransaction,
+    deleteRecurringTransaction,
     addCategory,
     updateCategory,
     deleteCategory,
+    addBudget,
+    updateBudget,
+    deleteBudget,
     updateSettings: updateSettingsAction,
     toggleSidebar,
     setSidebar,

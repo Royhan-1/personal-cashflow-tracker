@@ -9,19 +9,22 @@ import {
 } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import { useApp } from '@/context/AppContext';
-import { getCategorySummary, getCurrentMonth, formatCurrency } from '@/lib/utils';
+import { getCategorySummary, formatCurrency } from '@/lib/utils';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-export default function CategoryBreakdown() {
+interface CategoryBreakdownProps {
+  selectedMonth: string;
+}
+
+export default function CategoryBreakdown({ selectedMonth }: CategoryBreakdownProps) {
   const { state } = useApp();
   const currency = state.settings.defaultCurrency;
-  const currentMonth = getCurrentMonth();
   const isDark = state.settings.theme === 'dark';
 
   const categorySummary = useMemo(
-    () => getCategorySummary(state.transactions, state.categories, currency, 'expense', currentMonth),
-    [state.transactions, state.categories, currency, currentMonth]
+    () => getCategorySummary(state.transactions, state.categories, currency, 'expense', selectedMonth),
+    [state.transactions, state.categories, currency, selectedMonth]
   );
 
   if (categorySummary.length === 0) {

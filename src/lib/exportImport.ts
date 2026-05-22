@@ -1,8 +1,11 @@
 import { AppData, EncryptedExport } from './types';
 import { APP_VERSION } from './constants';
-import { getAllTransactions, getAllCategories, getSettings, replaceAllData, mergeData } from './db';
+import { getAllTransactions, getAllCategories, getSettings, replaceAllData, mergeData, getAllRecurringTransactions, getAllBudgets } from './db';
 import { encryptData, decryptData } from './crypto';
 import { format } from 'date-fns';
+import { Transaction, Category } from './types';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 // ============================================================
 // Export Functions
@@ -12,10 +15,12 @@ import { format } from 'date-fns';
  * Gather all app data for export
  */
 export async function gatherExportData(): Promise<AppData> {
-  const [transactions, categories, settings] = await Promise.all([
+  const [transactions, categories, settings, recurringTransactions, budgets] = await Promise.all([
     getAllTransactions(),
     getAllCategories(),
     getSettings(),
+    getAllRecurringTransactions(),
+    getAllBudgets(),
   ]);
 
   return {
@@ -23,7 +28,9 @@ export async function gatherExportData(): Promise<AppData> {
     exportedAt: new Date().toISOString(),
     encrypted: false,
     transactions,
+    recurringTransactions,
     categories,
+    budgets,
     settings,
   };
 }
@@ -74,6 +81,79 @@ function downloadFile(content: string, filename: string, mimeType: string): void
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Export data as CSV
+ */
+export function exportCSV(transactions: Transaction[], categories: Category[]): void {
+  const headers = ['Tanggal', 'Tipe', 'Kategori', 'Deskripsi', 'Jumlah', 'Mata Uang', 'Catatan'];
+  
+  const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || 'Uncategorized';
+  
+  const rows = transactions.map(t => [
+    format(new Date(t.date), 'dd/MM/yyyy'),
+    t.type === 'income' ? 'Pemasukan' : 'Pengeluaran',
+    getCategoryName(t.category),
+    `"${t.description.replace(/"/g, '""')}"`,
+    t.amount.toString(),
+    t.currency,
+    `"${(t.notes || '').replace(/"/g, '""')}"`
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  
+  // Add BOM for Excel compatibility
+  const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+  const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const dateStr = format(new Date(), 'yyyy-MM-dd_HHmm');
+  link.download = `cashflow-export-${dateStr}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Export data as PDF
+ */
+export function exportPDF(transactions: Transaction[], categories: Category[], title: string = 'Laporan Transaksi'): void {
+  const doc = new jsPDF();
+  
+  const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || 'Uncategorized';
+  
+  doc.setFontSize(18);
+  doc.text(title, 14, 22);
+  
+  doc.setFontSize(11);
+  doc.setTextColor(100);
+  const dateStr = format(new Date(), 'dd MMM yyyy HH:mm');
+  doc.text(`Dicetak pada: ${dateStr}`, 14, 30);
+  
+  const tableData = transactions.map(t => [
+    format(new Date(t.date), 'dd/MM/yyyy'),
+    t.type === 'income' ? 'Pemasukan' : 'Pengeluaran',
+    getCategoryName(t.category),
+    t.description,
+    `${t.type === 'income' ? '+' : '-'}${t.amount} ${t.currency}`
+  ]);
+
+  // @ts-ignore - jspdf-autotable adds autoTable to doc
+  doc.autoTable({
+    startY: 36,
+    head: [['Tanggal', 'Tipe', 'Kategori', 'Deskripsi', 'Jumlah']],
+    body: tableData,
+    theme: 'grid',
+    headStyles: { fillColor: [108, 92, 231] },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    styles: { fontSize: 10, cellPadding: 3 },
+  });
+
+  const filenameDate = format(new Date(), 'yyyy-MM-dd_HHmm');
+  doc.save(`cashflow-report-${filenameDate}.pdf`);
 }
 
 // ============================================================
@@ -146,6 +226,8 @@ export function validateImportData(data: unknown): data is AppData {
   if (!d.version || typeof d.version !== 'string') return false;
   if (!Array.isArray(d.transactions)) return false;
   if (!Array.isArray(d.categories)) return false;
+  if (d.recurringTransactions && !Array.isArray(d.recurringTransactions)) return false;
+  if (d.budgets && !Array.isArray(d.budgets)) return false;
 
   // Validate at least some transaction fields
   for (const t of d.transactions) {
@@ -180,7 +262,9 @@ export function getImportPreview(data: AppData): ImportPreview {
  */
 export async function importReplace(data: AppData): Promise<ImportResult> {
   try {
-    await replaceAllData(data.transactions, data.categories, data.settings);
+    const recurring = data.recurringTransactions || [];
+    const budgets = data.budgets || [];
+    await replaceAllData(data.transactions, data.categories, data.settings, recurring, budgets);
     return {
       success: true,
       message: `Berhasil mengimpor ${data.transactions.length} transaksi`,
@@ -200,7 +284,9 @@ export async function importReplace(data: AppData): Promise<ImportResult> {
  */
 export async function importMerge(data: AppData): Promise<ImportResult> {
   try {
-    const result = await mergeData(data.transactions, data.categories);
+    const recurring = data.recurringTransactions || [];
+    const budgets = data.budgets || [];
+    const result = await mergeData(data.transactions, data.categories, recurring, budgets);
     return {
       success: true,
       message: `Berhasil menambahkan ${result.added} transaksi (${result.skipped} duplikat dilewati)`,
