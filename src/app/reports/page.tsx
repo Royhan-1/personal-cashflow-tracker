@@ -58,24 +58,25 @@ export default function ReportsPage() {
         label: 'Pemasukan',
         data: yearlyData.map(d => d.income),
         borderColor: CHART_COLORS.income,
-        backgroundColor: 'rgba(0, 212, 161, 0.1)',
-        tension: 0.4,
-        fill: true,
+        borderWidth: 3,
+        tension: 0,
+        fill: false,
       },
       {
         label: 'Pengeluaran',
         data: yearlyData.map(d => d.expense),
         borderColor: CHART_COLORS.expense,
-        backgroundColor: 'rgba(255, 107, 122, 0.1)',
-        tension: 0.4,
-        fill: true,
+        borderWidth: 3,
+        tension: 0,
+        fill: false,
       },
       {
         label: 'Net',
         data: yearlyData.map(d => d.net),
         borderColor: CHART_COLORS.net,
+        borderWidth: 3,
         borderDash: [5, 5],
-        tension: 0.4,
+        tension: 0,
         fill: false,
       }
     ],
@@ -89,11 +90,15 @@ export default function ReportsPage() {
         labels: { color: isDark ? '#8b8ba3' : '#6b6b80', font: { family: 'Inter' } }
       },
       tooltip: {
-        backgroundColor: isDark ? '#1c1c2a' : '#ffffff',
-        titleColor: isDark ? '#eaeaf2' : '#1a1a2e',
-        bodyColor: isDark ? '#8b8ba3' : '#6b6b80',
-        borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-        borderWidth: 1,
+        backgroundColor: isDark ? '#242424' : '#ffffff',
+        titleColor: isDark ? '#ffffff' : '#000000',
+        bodyColor: isDark ? '#e0e0e0' : '#111111',
+        borderColor: isDark ? '#ffffff' : '#000000',
+        borderWidth: 3,
+        cornerRadius: 0,
+        padding: 12,
+        titleFont: { family: 'Space Grotesk', weight: 'bold' as const },
+        bodyFont: { family: 'Space Grotesk', weight: 'bold' as const },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         callbacks: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -125,8 +130,9 @@ export default function ReportsPage() {
     datasets: [{
       data: expenseCategories.map(c => c.total),
       backgroundColor: expenseCategories.map(c => c.categoryColor),
-      borderWidth: isDark ? 2 : 1,
-      borderColor: isDark ? '#11111a' : '#ffffff',
+      borderWidth: 2,
+      borderColor: isDark ? '#ffffff' : '#000000',
+      hoverOffset: 0,
     }]
   };
 
@@ -136,6 +142,15 @@ export default function ReportsPage() {
     plugins: {
       legend: { display: false },
       tooltip: {
+        backgroundColor: isDark ? '#242424' : '#ffffff',
+        titleColor: isDark ? '#ffffff' : '#000000',
+        bodyColor: isDark ? '#e0e0e0' : '#111111',
+        borderColor: isDark ? '#ffffff' : '#000000',
+        borderWidth: 3,
+        cornerRadius: 0,
+        padding: 12,
+        titleFont: { family: 'Space Grotesk', weight: 'bold' as const },
+        bodyFont: { family: 'Space Grotesk', weight: 'bold' as const },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         callbacks: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

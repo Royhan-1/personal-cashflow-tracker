@@ -47,10 +47,10 @@ export default function CategoryBreakdown({ selectedMonth }: CategoryBreakdownPr
     datasets: [
       {
         data: categorySummary.map(s => s.total),
-        backgroundColor: categorySummary.map(s => s.categoryColor + 'cc'),
-        borderColor: categorySummary.map(s => s.categoryColor),
-        borderWidth: 1,
-        hoverOffset: 6,
+        backgroundColor: categorySummary.map(s => s.categoryColor),
+        borderColor: isDark ? '#ffffff' : '#000000',
+        borderWidth: 2,
+        hoverOffset: 0,
       },
     ],
   };
@@ -64,13 +64,15 @@ export default function CategoryBreakdown({ selectedMonth }: CategoryBreakdownPr
         display: false,
       },
       tooltip: {
-        backgroundColor: isDark ? '#1c1c2a' : '#ffffff',
-        titleColor: isDark ? '#eaeaf2' : '#1a1a2e',
-        bodyColor: isDark ? '#8b8ba3' : '#6b6b80',
-        borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-        borderWidth: 1,
-        cornerRadius: 8,
+        backgroundColor: isDark ? '#242424' : '#ffffff',
+        titleColor: isDark ? '#ffffff' : '#000000',
+        bodyColor: isDark ? '#e0e0e0' : '#111111',
+        borderColor: isDark ? '#ffffff' : '#000000',
+        borderWidth: 3,
+        cornerRadius: 0,
         padding: 12,
+        titleFont: { family: 'Space Grotesk', weight: 'bold' as const },
+        bodyFont: { family: 'Space Grotesk', weight: 'bold' as const },
         callbacks: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           label: function (context: any) {
