@@ -121,7 +121,10 @@ async function syncTableWithDelete(tableName: string, getLocalAll: () => Promise
 
     if (!server || localTime > serverTime) {
       const payload = mapLocalToServer(tableName, local, userId);
-      await supabase.from(tableName).upsert(payload);
+      const { error: upsertError } = await supabase.from(tableName).upsert(payload);
+      if (upsertError) {
+        console.error(`[Sync] Failed to upsert ${tableName} (ID: ${local.id}):`, upsertError.message, upsertError.details);
+      }
     }
   }
 
@@ -135,7 +138,10 @@ async function syncTableWithDelete(tableName: string, getLocalAll: () => Promise
     if (!local) {
       // Item exists on server but not locally — this means it was deleted locally.
       // Delete from server to propagate the deletion.
-      await supabase.from(tableName).delete().eq('id', server.id).eq('user_id', userId);
+      const { error: delError } = await supabase.from(tableName).delete().eq('id', server.id).eq('user_id', userId);
+      if (delError) {
+        console.error(`[Sync] Failed to delete ${tableName} (ID: ${server.id}):`, delError.message);
+      }
     } else if (serverTime > localTime) {
       await updateLocal(server.id, mapServerToLocal(tableName, server));
     }
