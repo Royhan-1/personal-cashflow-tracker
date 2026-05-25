@@ -8,8 +8,8 @@
     "build:cf": "opennextjs-cloudflare build",
     "start": "next start",
     "lint": "eslint",
-    "preview": "npm run build && opennextjs-cloudflare preview",
-    "deploy": "npm run build && opennextjs-cloudflare deploy"
+    "preview": "npm run build && npm run build:cf && opennextjs-cloudflare preview",
+    "deploy": "npm run build && npm run build:cf && opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

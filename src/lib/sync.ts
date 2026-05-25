@@ -10,7 +10,9 @@ import {
   updateRecurringTransaction,
   addBudget,
   updateBudget,
-  updateSettings
+  updateSettings,
+  getDeletedRecords,
+  clearDeletedRecord
 } from '@/lib/db';
 
 // ============================================================
@@ -18,7 +20,7 @@ import {
 // ============================================================
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
-let isSyncing = false;
+let isSyncingBackground = false;
 
 /**
  * Debounced wrapper: waits 2 seconds after the last call before executing.
@@ -35,24 +37,45 @@ export function debouncedSync() {
 // Core Sync Engine
 // ============================================================
 
-export async function syncDatabase() {
-  if (isSyncing) return; // Prevent concurrent syncs
-  isSyncing = true;
+export async function syncDatabase(
+  onStart?: () => void,
+  onSuccess?: (timestamp: string) => void,
+  onError?: (error: string) => void
+): Promise<{ success: boolean; error?: string; timestamp?: string }> {
+  if (isSyncingBackground) return { success: false, error: 'Sync in progress' };
+  isSyncingBackground = true;
+  
+  if (onStart) onStart();
 
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     console.log('User not logged in, skipping sync');
-    isSyncing = false;
-    return;
+    isSyncingBackground = false;
+    return { success: false, error: 'User not logged in' };
   }
 
   try {
-    // Sync transactions (with soft-delete support)
-    await syncTableWithDelete('transactions', getAllTransactions, addTransaction, updateTransaction, supabase, user.id);
-    await syncTableWithDelete('recurring_transactions', getAllRecurringTransactions, addRecurringTransaction, updateRecurringTransaction, supabase, user.id);
-    await syncTableWithDelete('budgets', getAllBudgets, addBudget, updateBudget, supabase, user.id);
+    // --------------------------------------------------------
+    // PHASE 1: Process Deleted Records (Push Deletions to Server)
+    // --------------------------------------------------------
+    const deletedRecords = await getDeletedRecords();
+    for (const record of deletedRecords) {
+      const { error: delError } = await supabase.from(record.tableName).delete().eq('id', record.id).eq('user_id', user.id);
+      if (delError) {
+        console.error(`[Sync] Failed to propagate deletion for ${record.tableName} (ID: ${record.id}):`, delError.message);
+      } else {
+        await clearDeletedRecord(record.id);
+      }
+    }
+
+    // --------------------------------------------------------
+    // PHASE 2 & 3: Push & Pull (Upserts)
+    // --------------------------------------------------------
+    await syncTable('transactions', getAllTransactions, addTransaction, updateTransaction, supabase, user.id);
+    await syncTable('recurring_transactions', getAllRecurringTransactions, addRecurringTransaction, updateRecurringTransaction, supabase, user.id);
+    await syncTable('budgets', getAllBudgets, addBudget, updateBudget, supabase, user.id);
 
     // Sync settings (simple key-value, no delete needed)
     const localSettings = await getSettings();
@@ -81,26 +104,30 @@ export async function syncDatabase() {
     }
 
     console.log('Sync completed successfully');
-  } catch (error) {
+    const timestamp = new Date().toISOString();
+    if (onSuccess) onSuccess(timestamp);
+    return { success: true, timestamp };
+  } catch (error: any) {
     console.error('Sync failed:', error);
+    const errorMsg = error?.message || 'Terjadi kesalahan saat menyinkronkan data.';
+    if (onError) onError(errorMsg);
+    return { success: false, error: errorMsg };
   } finally {
-    isSyncing = false;
+    isSyncingBackground = false;
   }
 }
 
 // ============================================================
-// Sync with Soft-Delete Support
+// Safe Two-Way Sync
 // ============================================================
 
 /**
- * Enhanced sync that also handles deletions:
- * - Pushes local items to server
- * - Pulls server items to local
- * - Deletes from server any items that exist on server but NOT locally
- *   (indicating local deletion happened)
+ * Enhanced sync:
+ * - Pushes local items to server if newer
+ * - Pulls server items to local if newer or missing locally
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function syncTableWithDelete(tableName: string, getLocalAll: () => Promise<any[]>, addLocal: (data: any) => Promise<any>, updateLocal: (id: string, data: any) => Promise<any>, supabase: any, userId: string) {
+async function syncTable(tableName: string, getLocalAll: () => Promise<any[]>, addLocal: (data: any) => Promise<any>, updateLocal: (id: string, data: any) => Promise<any>, supabase: any, userId: string) {
   const localItems = await getLocalAll();
   const { data: serverItems, error } = await supabase.from(tableName).select('*').eq('user_id', userId);
 
@@ -136,13 +163,12 @@ async function syncTableWithDelete(tableName: string, getLocalAll: () => Promise
     const serverTime = new Date(server.updated_at || server.created_at || 0).getTime();
 
     if (!local) {
-      // Item exists on server but not locally — this means it was deleted locally.
-      // Delete from server to propagate the deletion.
-      const { error: delError } = await supabase.from(tableName).delete().eq('id', server.id).eq('user_id', userId);
-      if (delError) {
-        console.error(`[Sync] Failed to delete ${tableName} (ID: ${server.id}):`, delError.message);
-      }
+      // Item exists on server but not locally, and it wasn't in deletedRecords.
+      // This means it was created on another device, or it's a fresh local install.
+      // Add it locally!
+      await addLocal(mapServerToLocal(tableName, server));
     } else if (serverTime > localTime) {
+      // Server is newer
       await updateLocal(server.id, mapServerToLocal(tableName, server));
     }
   }

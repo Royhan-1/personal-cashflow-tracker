@@ -51,6 +51,8 @@ interface AppState {
   isInitialized: boolean;
   sidebarOpen: boolean;
   toasts: Toast[];
+  lastSyncTime: string | null;
+  isSyncing: boolean;
 }
 
 export interface Toast {
@@ -84,7 +86,8 @@ type AppAction =
   | { type: 'SET_SIDEBAR'; payload: boolean }
   | { type: 'SET_PROFILE'; payload: UserProfile }
   | { type: 'ADD_TOAST'; payload: Toast }
-  | { type: 'REMOVE_TOAST'; payload: string };
+  | { type: 'REMOVE_TOAST'; payload: string }
+  | { type: 'SET_SYNC_STATUS'; payload: { isSyncing?: boolean; lastSyncTime?: string } };
 
 // ============================================================
 // Reducer
@@ -101,6 +104,8 @@ const initialState: AppState = {
   isInitialized: false,
   sidebarOpen: false,
   toasts: [],
+  lastSyncTime: typeof window !== 'undefined' ? localStorage.getItem('cashflow_last_sync') : null,
+  isSyncing: false,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -114,6 +119,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
         ...action.payload,
         isLoading: false,
         isInitialized: true,
+      };
+
+    case 'SET_SYNC_STATUS':
+      return {
+        ...state,
+        ...(action.payload.isSyncing !== undefined && { isSyncing: action.payload.isSyncing }),
+        ...(action.payload.lastSyncTime !== undefined && { lastSyncTime: action.payload.lastSyncTime }),
       };
 
     case 'SET_TRANSACTIONS':
@@ -260,6 +272,8 @@ interface AppContextType {
   toggleSidebar: () => void;
   setSidebar: (open: boolean) => void;
   showToast: (type: Toast['type'], message: string) => void;
+  removeToast: (id: string) => void;
+  triggerManualSync: () => Promise<void>;
   // Data refresh
   refreshData: () => Promise<void>;
   // Filter helpers
@@ -349,11 +363,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const id = generateId();
     dispatch({ type: 'ADD_TOAST', payload: { id, type, message } });
     const timer = setTimeout(() => {
-      dispatch({ type: 'REMOVE_TOAST', payload: id });
-      toastTimerRef.current.delete(id);
+      removeToast(id);
     }, 4000);
     toastTimerRef.current.set(id, timer);
   }, []);
+
+  const removeToast = useCallback((id: string) => {
+    dispatch({ type: 'REMOVE_TOAST', payload: id });
+    if (toastTimerRef.current.has(id)) {
+      clearTimeout(toastTimerRef.current.get(id));
+      toastTimerRef.current.delete(id);
+    }
+  }, []);
+
+  const triggerManualSync = useCallback(async () => {
+    dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: true } });
+    
+    const result = await syncDatabase();
+    
+    if (result.success && result.timestamp) {
+      localStorage.setItem('cashflow_last_sync', result.timestamp);
+      dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: false, lastSyncTime: result.timestamp } });
+      showToast('success', 'Sinkronisasi data berhasil');
+      await refreshData();
+    } else {
+      dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: false } });
+      showToast('error', result.error || 'Sinkronisasi gagal');
+    }
+  }, [showToast]);
 
   const refreshData = useCallback(async () => {
     await generateDueRecurringTransactions();
@@ -577,6 +614,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toggleSidebar,
     setSidebar,
     showToast,
+    removeToast,
+    triggerManualSync,
     refreshData,
     getFilteredTransactions,
   };

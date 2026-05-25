@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
-import { Transaction, Category, AppSettings, RecurringTransaction, Budget } from './types';
+import { Transaction, Category, AppSettings, RecurringTransaction, Budget, DeletedRecord } from './types';
 import { ALL_DEFAULT_CATEGORIES, DEFAULT_SETTINGS, DB_NAME } from './constants';
 
 // ============================================================
@@ -12,6 +12,7 @@ const db = new Dexie(DB_NAME) as Dexie & {
   settings: EntityTable<AppSettings & { id: string }, 'id'>;
   recurringTransactions: EntityTable<RecurringTransaction, 'id'>;
   budgets: EntityTable<Budget, 'id'>;
+  deletedRecords: EntityTable<DeletedRecord, 'id'>;
 };
 
 db.version(1).stores({
@@ -27,6 +28,30 @@ db.version(2).stores({
 db.version(3).stores({
   budgets: 'id, categoryId, currency',
 });
+
+db.version(4).stores({
+  deletedRecords: 'id, tableName',
+});
+
+// ============================================================
+// Deletion Tracking
+// ============================================================
+
+export async function logDeletion(id: string, tableName: DeletedRecord['tableName']) {
+  await db.deletedRecords.put({
+    id,
+    tableName,
+    deletedAt: new Date().toISOString()
+  });
+}
+
+export async function getDeletedRecords() {
+  return db.deletedRecords.toArray();
+}
+
+export async function clearDeletedRecord(id: string) {
+  await db.deletedRecords.delete(id);
+}
 
 // ============================================================
 // Database Initialization
@@ -67,11 +92,19 @@ export async function updateTransaction(id: string, updates: Partial<Transaction
 }
 
 export async function deleteTransaction(id: string): Promise<void> {
-  return db.transactions.delete(id);
+  await db.transaction('rw', db.transactions, db.deletedRecords, async () => {
+    await db.transactions.delete(id);
+    await logDeletion(id, 'transactions');
+  });
 }
 
 export async function deleteMultipleTransactions(ids: string[]): Promise<void> {
-  return db.transactions.bulkDelete(ids);
+  await db.transaction('rw', db.transactions, db.deletedRecords, async () => {
+    await db.transactions.bulkDelete(ids);
+    for (const id of ids) {
+      await logDeletion(id, 'transactions');
+    }
+  });
 }
 
 export async function getTransactionCount(): Promise<number> {
@@ -95,7 +128,10 @@ export async function updateRecurringTransaction(id: string, updates: Partial<Re
 }
 
 export async function deleteRecurringTransaction(id: string): Promise<void> {
-  return db.recurringTransactions.delete(id);
+  await db.transaction('rw', db.recurringTransactions, db.deletedRecords, async () => {
+    await db.recurringTransactions.delete(id);
+    await logDeletion(id, 'recurring_transactions');
+  });
 }
 
 // ============================================================
@@ -146,7 +182,10 @@ export async function updateBudget(id: string, updates: Partial<Budget>): Promis
 }
 
 export async function deleteBudget(id: string): Promise<void> {
-  return db.budgets.delete(id);
+  await db.transaction('rw', db.budgets, db.deletedRecords, async () => {
+    await db.budgets.delete(id);
+    await logDeletion(id, 'budgets');
+  });
 }
 
 // ============================================================
@@ -250,14 +289,16 @@ export async function mergeData(
 }
 
 export async function clearAllData(): Promise<void> {
-  await db.transaction('rw', [db.transactions, db.categories, db.settings, db.recurringTransactions, db.budgets], async () => {
+  await db.transaction('rw', [db.transactions, db.categories, db.settings, db.recurringTransactions, db.budgets, db.deletedRecords], async () => {
     await db.transactions.clear();
     await db.categories.clear();
     await db.settings.clear();
     await db.recurringTransactions.clear();
     await db.budgets.clear();
+    await db.deletedRecords.clear();
   });
-  // Re-initialize defaults
+  
+  // Re-seed default data
   await initializeDatabase();
 }
 

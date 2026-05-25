@@ -67,6 +67,16 @@ export default function Sidebar() {
         <div className="sidebar-footer">
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
             v1.0.0 · Cloud Sync Active
+            {state.lastSyncTime && (
+              <div style={{ marginTop: '4px', opacity: 0.8 }}>
+                Terakhir Sinkron: {new Date(state.lastSyncTime).toLocaleString('id-ID', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  day: '2-digit',
+                  month: 'short'
+                })}
+              </div>
+            )}
           </div>
         </div>
       </aside>

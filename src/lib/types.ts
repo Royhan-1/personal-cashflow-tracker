@@ -35,6 +35,12 @@ export interface RecurringTransaction {
   updatedAt: string;
 }
 
+export interface DeletedRecord {
+  id: string;
+  tableName: 'transactions' | 'recurring_transactions' | 'budgets' | 'categories';
+  deletedAt: string; // ISO timestamp
+}
+
 export interface Budget {
   id: string;
   categoryId: string; // Terkait ke Category

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Menu, Sun, Moon } from 'lucide-react';
+import { Menu, Sun, Moon, RefreshCw } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
 interface HeaderProps {
@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 export default function Header({ title, subtitle, children }: HeaderProps) {
-  const { state, toggleSidebar, updateSettings } = useApp();
+  const { state, toggleSidebar, updateSettings, triggerManualSync } = useApp();
 
   const toggleTheme = () => {
     const newTheme = state.settings.theme === 'dark' ? 'light' : 'dark';
@@ -32,6 +32,15 @@ export default function Header({ title, subtitle, children }: HeaderProps) {
 
       <div className="header-right">
         {children}
+        <button
+          className="btn btn-ghost btn-icon"
+          onClick={triggerManualSync}
+          disabled={state.isSyncing}
+          aria-label="Sync Database"
+          title="Sinkronisasi Data"
+        >
+          <RefreshCw size={18} className={state.isSyncing ? 'animate-spin' : ''} />
+        </button>
         <button
           className="btn btn-ghost btn-icon"
           onClick={toggleTheme}
