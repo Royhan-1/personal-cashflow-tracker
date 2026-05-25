@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
 import { Transaction, Category, AppSettings, TransactionFilters, RecurringTransaction, Budget } from '@/lib/types';
+import { createClient } from '@/lib/supabase/client';
 import {
   initializeDatabase,
   getAllTransactions,
@@ -27,11 +28,17 @@ import {
 import { generateDueRecurringTransactions } from '@/lib/recurring';
 import { generateId, getToday } from '@/lib/utils';
 import { DEFAULT_SETTINGS } from '@/lib/constants';
-import { syncDatabase } from '@/lib/sync';
+import { syncDatabase, debouncedSync } from '@/lib/sync';
 
 // ============================================================
 // State Types
 // ============================================================
+
+interface UserProfile {
+  email: string;
+  fullName: string;
+  avatarUrl: string;
+}
 
 interface AppState {
   transactions: Transaction[];
@@ -39,6 +46,7 @@ interface AppState {
   categories: Category[];
   budgets: Budget[];
   settings: AppSettings;
+  userProfile: UserProfile | null;
   isLoading: boolean;
   isInitialized: boolean;
   sidebarOpen: boolean;
@@ -74,6 +82,7 @@ type AppAction =
   | { type: 'SET_SETTINGS'; payload: Partial<AppSettings> }
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'SET_SIDEBAR'; payload: boolean }
+  | { type: 'SET_PROFILE'; payload: UserProfile }
   | { type: 'ADD_TOAST'; payload: Toast }
   | { type: 'REMOVE_TOAST'; payload: string };
 
@@ -87,6 +96,7 @@ const initialState: AppState = {
   categories: [],
   budgets: [],
   settings: DEFAULT_SETTINGS,
+  userProfile: null,
   isLoading: true,
   isInitialized: false,
   sidebarOpen: false,
@@ -207,6 +217,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_SIDEBAR':
       return { ...state, sidebarOpen: action.payload };
 
+    case 'SET_PROFILE':
+      return { ...state, userProfile: action.payload };
+
     case 'ADD_TOAST':
       return { ...state, toasts: [...state.toasts, action.payload] };
 
@@ -263,6 +276,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const toastTimerRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
+  // Ref to hold refreshData to avoid stale closure in init useEffect
+  const refreshDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
+
   // Initialize database and load data
   useEffect(() => {
     async function init() {
@@ -281,8 +297,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Background sync with Supabase
         syncDatabase().then(() => {
           // Refresh context data if sync brought new items
-          refreshData();
+          refreshDataRef.current();
         }).catch(err => console.error('Background sync error', err));
+
+        // Fetch user profile and cache in context
+        try {
+          const supabase = createClient();
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: profile } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single();
+            dispatch({
+              type: 'SET_PROFILE',
+              payload: {
+                email: user.email || '',
+                fullName: profile?.full_name || '',
+                avatarUrl: profile?.avatar_url || '',
+              },
+            });
+          }
+        } catch (profileErr) {
+          console.error('Failed to load profile:', profileErr);
+        }
       } catch (error) {
         console.error('Failed to initialize database:', error);
         dispatch({ type: 'SET_LOADING', payload: false });
@@ -332,6 +367,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'INITIALIZE', payload: { transactions, recurringTransactions, categories, budgets, settings } });
   }, []);
 
+  // Keep refreshDataRef in sync
+  useEffect(() => {
+    refreshDataRef.current = refreshData;
+  }, [refreshData]);
+
   const addTransaction = useCallback(async (data: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
     const transaction: Transaction = {
@@ -343,27 +383,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await dbAddTransaction(transaction);
     dispatch({ type: 'ADD_TRANSACTION', payload: transaction });
     showToast('success', 'Transaksi berhasil ditambahkan');
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [showToast]);
 
   const updateTransaction = useCallback(async (id: string, updates: Partial<Transaction>) => {
     await dbUpdateTransaction(id, updates);
     dispatch({ type: 'UPDATE_TRANSACTION', payload: { id, updates: { ...updates, updatedAt: new Date().toISOString() } } });
     showToast('success', 'Transaksi berhasil diperbarui');
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [showToast]);
 
   const deleteTransaction = useCallback(async (id: string) => {
     await dbDeleteTransaction(id);
     dispatch({ type: 'DELETE_TRANSACTION', payload: id });
     showToast('success', 'Transaksi berhasil dihapus');
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [showToast]);
 
   const deleteTransactions = useCallback(async (ids: string[]) => {
     await dbDeleteMultiple(ids);
     dispatch({ type: 'DELETE_TRANSACTIONS', payload: ids });
     showToast('success', `${ids.length} transaksi berhasil dihapus`);
+    debouncedSync();
   }, [showToast]);
 
   const addRecurringTransaction = useCallback(async (data: Omit<RecurringTransaction, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -378,7 +419,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'ADD_RECURRING', payload: recurringTx });
     showToast('success', 'Transaksi berulang berhasil ditambahkan');
     await refreshData(); // So the newly generated transactions are picked up if any
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [showToast, refreshData]);
 
   const updateRecurringTransaction = useCallback(async (id: string, updates: Partial<RecurringTransaction>) => {
@@ -386,14 +427,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'UPDATE_RECURRING', payload: { id, updates: { ...updates, updatedAt: new Date().toISOString() } } });
     showToast('success', 'Transaksi berulang berhasil diperbarui');
     await refreshData();
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [showToast, refreshData]);
 
   const deleteRecurringTransaction = useCallback(async (id: string) => {
     await dbDeleteRecurringTransaction(id);
     dispatch({ type: 'DELETE_RECURRING', payload: id });
     showToast('success', 'Transaksi berulang berhasil dihapus');
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [showToast]);
 
   const addCategory = useCallback(async (data: Omit<Category, 'id' | 'isDefault' | 'order'>) => {
@@ -406,21 +447,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await dbAddCategory(category);
     dispatch({ type: 'ADD_CATEGORY', payload: category });
     showToast('success', 'Kategori berhasil ditambahkan');
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [state.categories.length, showToast]);
 
   const updateCategory = useCallback(async (id: string, updates: Partial<Category>) => {
     await dbUpdateCategory(id, updates);
     dispatch({ type: 'UPDATE_CATEGORY', payload: { id, updates } });
     showToast('success', 'Kategori berhasil diperbarui');
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [showToast]);
 
   const deleteCategory = useCallback(async (id: string) => {
     await dbDeleteCategory(id);
     dispatch({ type: 'DELETE_CATEGORY', payload: id });
     showToast('success', 'Kategori berhasil dihapus');
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [showToast]);
 
   const addBudget = useCallback(async (data: Omit<Budget, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -433,28 +474,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await dbAddBudget(budget);
     dispatch({ type: 'ADD_BUDGET', payload: budget });
     showToast('success', 'Anggaran berhasil ditambahkan');
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [showToast]);
 
   const updateBudget = useCallback(async (id: string, updates: Partial<Budget>) => {
     await dbUpdateBudget(id, updates);
     dispatch({ type: 'UPDATE_BUDGET', payload: { id, updates: { ...updates, updatedAt: new Date().toISOString() } } });
     showToast('success', 'Anggaran berhasil diperbarui');
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [showToast]);
 
   const deleteBudget = useCallback(async (id: string) => {
     await dbDeleteBudget(id);
     dispatch({ type: 'DELETE_BUDGET', payload: id });
     showToast('success', 'Anggaran berhasil dihapus');
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [showToast]);
 
   const updateSettingsAction = useCallback(async (updates: Partial<AppSettings>) => {
     await dbUpdateSettings(updates);
     dispatch({ type: 'SET_SETTINGS', payload: updates });
     showToast('success', 'Pengaturan berhasil disimpan');
-    syncDatabase().catch(console.error);
+    debouncedSync();
   }, [showToast]);
 
   const toggleSidebar = useCallback(() => {

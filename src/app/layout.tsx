@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AppProvider } from "@/context/AppContext";
 import ToastContainer from "@/components/ui/ToastContainer";
+import ErrorBoundary from "@/components/ui/ErrorBoundary";
 
 export const metadata: Metadata = {
   title: "CashFlow Tracker — Personal Finance",
@@ -17,10 +18,12 @@ export default function RootLayout({
   return (
     <html lang="id" data-theme="dark" suppressHydrationWarning>
       <body>
-        <AppProvider>
-          {children}
-          <ToastContainer />
-        </AppProvider>
+        <ErrorBoundary>
+          <AppProvider>
+            {children}
+            <ToastContainer />
+          </AppProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

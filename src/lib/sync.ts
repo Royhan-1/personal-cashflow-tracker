@@ -1,14 +1,11 @@
 import { createClient } from '@/lib/supabase/client';
 import {
   getAllTransactions,
-  getAllCategories,
   getAllRecurringTransactions,
   getAllBudgets,
   getSettings,
   addTransaction,
   updateTransaction,
-  addCategory,
-  updateCategory,
   addRecurringTransaction,
   updateRecurringTransaction,
   addBudget,
@@ -16,21 +13,48 @@ import {
   updateSettings
 } from '@/lib/db';
 
+// ============================================================
+// Debounced Sync
+// ============================================================
+
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+let isSyncing = false;
+
+/**
+ * Debounced wrapper: waits 2 seconds after the last call before executing.
+ * Prevents rapid-fire sync calls from concurrent mutations.
+ */
+export function debouncedSync() {
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    syncDatabase().catch(console.error);
+  }, 2000);
+}
+
+// ============================================================
+// Core Sync Engine
+// ============================================================
+
 export async function syncDatabase() {
+  if (isSyncing) return; // Prevent concurrent syncs
+  isSyncing = true;
+
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     console.log('User not logged in, skipping sync');
+    isSyncing = false;
     return;
   }
 
   try {
-    await syncTable('categories', getAllCategories, addCategory, updateCategory, supabase, user.id);
-    await syncTable('transactions', getAllTransactions, addTransaction, updateTransaction, supabase, user.id);
-    await syncTable('recurring_transactions', getAllRecurringTransactions, addRecurringTransaction, updateRecurringTransaction, supabase, user.id);
-    await syncTable('budgets', getAllBudgets, addBudget, updateBudget, supabase, user.id);
+    // Sync transactions (with soft-delete support)
+    await syncTableWithDelete('transactions', getAllTransactions, addTransaction, updateTransaction, supabase, user.id);
+    await syncTableWithDelete('recurring_transactions', getAllRecurringTransactions, addRecurringTransaction, updateRecurringTransaction, supabase, user.id);
+    await syncTableWithDelete('budgets', getAllBudgets, addBudget, updateBudget, supabase, user.id);
 
+    // Sync settings (simple key-value, no delete needed)
     const localSettings = await getSettings();
     const { data: serverSettings } = await supabase.from('settings').select('*').eq('user_id', user.id).single();
     
@@ -41,7 +65,6 @@ export async function syncDatabase() {
         theme: localSettings.theme
       });
     } else {
-      // Very basic sync for settings
       if (new Date(localSettings.updatedAt || 0) > new Date(serverSettings.updated_at)) {
         await supabase.from('settings').update({
           default_currency: localSettings.defaultCurrency,
@@ -60,11 +83,24 @@ export async function syncDatabase() {
     console.log('Sync completed successfully');
   } catch (error) {
     console.error('Sync failed:', error);
+  } finally {
+    isSyncing = false;
   }
 }
 
+// ============================================================
+// Sync with Soft-Delete Support
+// ============================================================
+
+/**
+ * Enhanced sync that also handles deletions:
+ * - Pushes local items to server
+ * - Pulls server items to local
+ * - Deletes from server any items that exist on server but NOT locally
+ *   (indicating local deletion happened)
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function syncTable(tableName: string, getLocalAll: () => Promise<any[]>, addLocal: (data: any) => Promise<any>, updateLocal: (id: string, data: any) => Promise<any>, supabase: any, userId: string) {
+async function syncTableWithDelete(tableName: string, getLocalAll: () => Promise<any[]>, addLocal: (data: any) => Promise<any>, updateLocal: (id: string, data: any) => Promise<any>, supabase: any, userId: string) {
   const localItems = await getLocalAll();
   const { data: serverItems, error } = await supabase.from(tableName).select('*').eq('user_id', userId);
 
@@ -77,7 +113,7 @@ async function syncTable(tableName: string, getLocalAll: () => Promise<any[]>, a
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const serverMap = new Map<any, any>(serverItems.map((item: any) => [item.id, item]));
 
-  // Push local to server if newer or doesn't exist
+  // 1. Push local to server if newer or doesn't exist on server
   for (const local of localItems) {
     const server = serverMap.get(local.id);
     const localTime = new Date(local.updatedAt || local.createdAt || 0).getTime();
@@ -89,7 +125,7 @@ async function syncTable(tableName: string, getLocalAll: () => Promise<any[]>, a
     }
   }
 
-  // Pull server to local if newer or doesn't exist
+  // 2. Pull server to local if newer or doesn't exist locally
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const server of (serverItems as any[])) {
     const local = localMap.get(server.id);
@@ -97,12 +133,18 @@ async function syncTable(tableName: string, getLocalAll: () => Promise<any[]>, a
     const serverTime = new Date(server.updated_at || server.created_at || 0).getTime();
 
     if (!local) {
-      await addLocal(mapServerToLocal(tableName, server));
+      // Item exists on server but not locally — this means it was deleted locally.
+      // Delete from server to propagate the deletion.
+      await supabase.from(tableName).delete().eq('id', server.id).eq('user_id', userId);
     } else if (serverTime > localTime) {
       await updateLocal(server.id, mapServerToLocal(tableName, server));
     }
   }
 }
+
+// ============================================================
+// Field Mappers
+// ============================================================
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapLocalToServer(table: string, local: any, userId: string) {
@@ -116,23 +158,9 @@ function mapLocalToServer(table: string, local: any, userId: string) {
       description: local.description,
       type: local.type,
       currency: local.currency || 'IDR',
-      is_recurring: false,
+      is_recurring: !!local.recurringId,
       created_at: local.createdAt,
       updated_at: local.updatedAt || local.createdAt,
-    };
-  }
-  if (table === 'categories') {
-    return {
-      id: local.id,
-      user_id: userId,
-      name: local.name,
-      icon: local.icon,
-      color: local.color,
-      type: local.type,
-      is_default: local.isDefault,
-      order_num: local.order,
-      created_at: local.createdAt || new Date().toISOString(),
-      updated_at: local.updatedAt || new Date().toISOString(),
     };
   }
   if (table === 'recurring_transactions') {
@@ -182,17 +210,6 @@ function mapServerToLocal(table: string, server: any) {
       currency: server.currency,
       createdAt: server.created_at,
       updatedAt: server.updated_at || server.created_at,
-    };
-  }
-  if (table === 'categories') {
-    return {
-      id: server.id,
-      name: server.name,
-      icon: server.icon,
-      color: server.color,
-      type: server.type,
-      isDefault: server.is_default,
-      order: server.order_num,
     };
   }
   if (table === 'recurring_transactions') {

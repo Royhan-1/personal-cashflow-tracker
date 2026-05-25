@@ -13,7 +13,6 @@ import TransactionForm from '@/components/transactions/TransactionForm';
 import { useApp } from '@/context/AppContext';
 import { getGreeting, getCurrentMonth } from '@/lib/utils';
 import { motion } from 'framer-motion';
-import { createClient } from '@/lib/supabase/client';
 
 const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -28,24 +27,15 @@ export default function DashboardPage() {
   // Month picker state
   const currentMonth = getCurrentMonth(); // 'YYYY-MM'
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [userName, setUserName] = useState('');
 
-  // Fetch user profile name
-  React.useEffect(() => {
-    async function fetchUser() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
-        if (data && data.full_name) {
-          // Get first name
-          const firstName = data.full_name.split(' ')[0];
-          setUserName(firstName);
-        }
-      }
+  // Get first name from cached profile in AppContext
+  const userName = useMemo(() => {
+    if (state.userProfile?.fullName) {
+      return state.userProfile.fullName.split(' ')[0];
     }
-    fetchUser();
-  }, []);
+    return '';
+  }, [state.userProfile]);
+
 
   const isCurrentMonth = selectedMonth === currentMonth;
 
