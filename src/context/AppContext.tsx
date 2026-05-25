@@ -378,6 +378,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'ADD_RECURRING', payload: recurringTx });
     showToast('success', 'Transaksi berulang berhasil ditambahkan');
     await refreshData(); // So the newly generated transactions are picked up if any
+    syncDatabase().catch(console.error);
   }, [showToast, refreshData]);
 
   const updateRecurringTransaction = useCallback(async (id: string, updates: Partial<RecurringTransaction>) => {
@@ -385,12 +386,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'UPDATE_RECURRING', payload: { id, updates: { ...updates, updatedAt: new Date().toISOString() } } });
     showToast('success', 'Transaksi berulang berhasil diperbarui');
     await refreshData();
+    syncDatabase().catch(console.error);
   }, [showToast, refreshData]);
 
   const deleteRecurringTransaction = useCallback(async (id: string) => {
     await dbDeleteRecurringTransaction(id);
     dispatch({ type: 'DELETE_RECURRING', payload: id });
     showToast('success', 'Transaksi berulang berhasil dihapus');
+    syncDatabase().catch(console.error);
   }, [showToast]);
 
   const addCategory = useCallback(async (data: Omit<Category, 'id' | 'isDefault' | 'order'>) => {
@@ -403,18 +406,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await dbAddCategory(category);
     dispatch({ type: 'ADD_CATEGORY', payload: category });
     showToast('success', 'Kategori berhasil ditambahkan');
+    syncDatabase().catch(console.error);
   }, [state.categories.length, showToast]);
 
   const updateCategory = useCallback(async (id: string, updates: Partial<Category>) => {
     await dbUpdateCategory(id, updates);
     dispatch({ type: 'UPDATE_CATEGORY', payload: { id, updates } });
     showToast('success', 'Kategori berhasil diperbarui');
+    syncDatabase().catch(console.error);
   }, [showToast]);
 
   const deleteCategory = useCallback(async (id: string) => {
     await dbDeleteCategory(id);
     dispatch({ type: 'DELETE_CATEGORY', payload: id });
     showToast('success', 'Kategori berhasil dihapus');
+    syncDatabase().catch(console.error);
   }, [showToast]);
 
   const addBudget = useCallback(async (data: Omit<Budget, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -427,24 +433,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await dbAddBudget(budget);
     dispatch({ type: 'ADD_BUDGET', payload: budget });
     showToast('success', 'Anggaran berhasil ditambahkan');
+    syncDatabase().catch(console.error);
   }, [showToast]);
 
   const updateBudget = useCallback(async (id: string, updates: Partial<Budget>) => {
     await dbUpdateBudget(id, updates);
     dispatch({ type: 'UPDATE_BUDGET', payload: { id, updates: { ...updates, updatedAt: new Date().toISOString() } } });
     showToast('success', 'Anggaran berhasil diperbarui');
+    syncDatabase().catch(console.error);
   }, [showToast]);
 
   const deleteBudget = useCallback(async (id: string) => {
     await dbDeleteBudget(id);
     dispatch({ type: 'DELETE_BUDGET', payload: id });
     showToast('success', 'Anggaran berhasil dihapus');
+    syncDatabase().catch(console.error);
   }, [showToast]);
 
   const updateSettingsAction = useCallback(async (updates: Partial<AppSettings>) => {
     await dbUpdateSettings(updates);
     dispatch({ type: 'SET_SETTINGS', payload: updates });
     showToast('success', 'Pengaturan berhasil disimpan');
+    syncDatabase().catch(console.error);
   }, [showToast]);
 
   const toggleSidebar = useCallback(() => {

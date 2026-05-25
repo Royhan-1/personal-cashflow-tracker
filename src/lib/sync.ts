@@ -26,9 +26,10 @@ export async function syncDatabase() {
   }
 
   try {
+    await syncTable('categories', getAllCategories, addCategory, updateCategory, supabase, user.id);
     await syncTable('transactions', getAllTransactions, addTransaction, updateTransaction, supabase, user.id);
-    // Recurring and budgets can be added later if needed, focusing on core entities first
-    // For now we sync categories and transactions as proof of concept
+    await syncTable('recurring_transactions', getAllRecurringTransactions, addRecurringTransaction, updateRecurringTransaction, supabase, user.id);
+    await syncTable('budgets', getAllBudgets, addBudget, updateBudget, supabase, user.id);
 
     const localSettings = await getSettings();
     const { data: serverSettings } = await supabase.from('settings').select('*').eq('user_id', user.id).single();
@@ -63,7 +64,7 @@ export async function syncDatabase() {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function syncTable(tableName: string, getLocalAll: () => Promise<any[]>, addLocal: (data: any) => Promise<void>, updateLocal: (id: string, data: any) => Promise<void>, supabase: any, userId: string) {
+async function syncTable(tableName: string, getLocalAll: () => Promise<any[]>, addLocal: (data: any) => Promise<any>, updateLocal: (id: string, data: any) => Promise<any>, supabase: any, userId: string) {
   const localItems = await getLocalAll();
   const { data: serverItems, error } = await supabase.from(tableName).select('*').eq('user_id', userId);
 
@@ -74,7 +75,7 @@ async function syncTable(tableName: string, getLocalAll: () => Promise<any[]>, a
   // Create maps
   const localMap = new Map(localItems.map(item => [item.id, item]));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const serverMap = new Map(serverItems.map((item: any) => [item.id, item]));
+  const serverMap = new Map<any, any>(serverItems.map((item: any) => [item.id, item]));
 
   // Push local to server if newer or doesn't exist
   for (const local of localItems) {
@@ -117,7 +118,52 @@ function mapLocalToServer(table: string, local: any, userId: string) {
       currency: local.currency || 'IDR',
       is_recurring: false,
       created_at: local.createdAt,
-      // updated_at is missing in DB schema but let's assume createdAt acts as updated_at for now
+      updated_at: local.updatedAt || local.createdAt,
+    };
+  }
+  if (table === 'categories') {
+    return {
+      id: local.id,
+      user_id: userId,
+      name: local.name,
+      icon: local.icon,
+      color: local.color,
+      type: local.type,
+      is_default: local.isDefault,
+      order_num: local.order,
+      created_at: local.createdAt || new Date().toISOString(),
+      updated_at: local.updatedAt || new Date().toISOString(),
+    };
+  }
+  if (table === 'recurring_transactions') {
+    return {
+      id: local.id,
+      user_id: userId,
+      type: local.type,
+      amount: local.amount,
+      currency: local.currency,
+      category_id: local.category,
+      description: local.description,
+      frequency: local.frequency,
+      start_date: local.startDate,
+      end_date: local.endDate || null,
+      last_generated_date: local.lastGeneratedDate || null,
+      is_active: local.isActive,
+      notes: local.notes || null,
+      created_at: local.createdAt,
+      updated_at: local.updatedAt,
+    };
+  }
+  if (table === 'budgets') {
+    return {
+      id: local.id,
+      user_id: userId,
+      category_id: local.categoryId,
+      amount: local.amount,
+      currency: local.currency,
+      period: local.period,
+      created_at: local.createdAt,
+      updated_at: local.updatedAt,
     };
   }
   return {};
@@ -128,14 +174,54 @@ function mapServerToLocal(table: string, server: any) {
   if (table === 'transactions') {
     return {
       id: server.id,
-      amount: server.amount,
+      amount: Number(server.amount),
       date: server.date,
       category: server.category_id,
       description: server.description,
       type: server.type,
       currency: server.currency,
       createdAt: server.created_at,
-      updatedAt: server.created_at,
+      updatedAt: server.updated_at || server.created_at,
+    };
+  }
+  if (table === 'categories') {
+    return {
+      id: server.id,
+      name: server.name,
+      icon: server.icon,
+      color: server.color,
+      type: server.type,
+      isDefault: server.is_default,
+      order: server.order_num,
+    };
+  }
+  if (table === 'recurring_transactions') {
+    return {
+      id: server.id,
+      type: server.type,
+      amount: Number(server.amount),
+      currency: server.currency,
+      category: server.category_id,
+      description: server.description,
+      frequency: server.frequency,
+      startDate: server.start_date,
+      endDate: server.end_date || undefined,
+      lastGeneratedDate: server.last_generated_date || undefined,
+      isActive: server.is_active,
+      notes: server.notes || undefined,
+      createdAt: server.created_at,
+      updatedAt: server.updated_at || server.created_at,
+    };
+  }
+  if (table === 'budgets') {
+    return {
+      id: server.id,
+      categoryId: server.category_id,
+      amount: Number(server.amount),
+      currency: server.currency,
+      period: server.period,
+      createdAt: server.created_at,
+      updatedAt: server.updated_at || server.created_at,
     };
   }
   return {};

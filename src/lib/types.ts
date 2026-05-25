@@ -75,6 +75,7 @@ export interface AppSettings {
   defaultCurrency: string;
   enabledCurrencies: string[];
   theme: 'light' | 'dark' | 'system';
+  updatedAt?: string;
 }
 
 // Export/Import types
