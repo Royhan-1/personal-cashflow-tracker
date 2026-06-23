@@ -1,0 +1,10 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- Shadow (Neobrutalism drop shadow) -->
+  <rect x="52" y="52" width="160" height="160" fill="#000000" />
+  
+  <!-- Main Card -->
+  <rect x="28" y="28" width="160" height="160" fill="#00d2d3" stroke="#000000" stroke-width="12" stroke-linejoin="round" />
+  
+  <!-- Text Logo -->
+  <text x="108" y="112" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="84" text-anchor="middle" dominant-baseline="central" fill="#000000">CF</text>
+</svg>

@@ -43,7 +43,32 @@ next-env.d.ts
 
 AGENTS.md
 CLAUDE.md
+DEPLOY_CLOUDFLARE.md
+SYSTEM_ANALYSIS.md
 
 # open-next and wrangler
 .open-next/
 .wrangler/
+
+# Android build artifacts
+android/app/build/
+android/app/.gradle/
+android/build/
+.gradle/
+local.properties
+*.apk
+*.aar
+
+# IDE
+.idea/
+.vscode/local-settings.json
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local database files
+*.db
+*.sqlite
+*.sqlite3
